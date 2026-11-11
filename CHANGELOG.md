@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep repeated SSD1677 partial refreshes synchronized with standby/resume power state, including tutorial page navigation.
+- Cover six consecutive SSD1677 standby/partial cycles in the actual-driver regression suite.
+
 - Route display readback through bidirectional SDA on GPIO14 at 2 MHz, matching SSD2677 read timing while preserving the shared MicroSD return line.
 - Add a board SPI configuration regression test and boot diagnostics for readback setup.
 

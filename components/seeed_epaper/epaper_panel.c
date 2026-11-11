@@ -1303,6 +1303,7 @@ esp_err_t seeed_epaper_panel_prepare(seeed_epaper_panel_handle_t panel,
             return err;
         }
         panel->standby = false;
+        panel->partial_after_standby = false;
         panel->prepared = true;
         panel->sleeping = false;
         APP_EPAPER_DEBUG_LOGI(TAG,

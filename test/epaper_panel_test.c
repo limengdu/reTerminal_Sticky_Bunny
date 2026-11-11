@@ -289,6 +289,37 @@ static void test_ssd1677_mirrored_region(void) {
     destroy(p);
 }
 
+/* Repeat the same standby/partial path used when paging through the tutorial. */
+static void test_ssd1677_repeated_standby_partial(void) {
+    seeed_epaper_panel_handle_t p = create(0xff, SEEED_EPAPER_PANEL_SSD1677);
+    memset(mono, 0xff, sizeof mono);
+    assert(seeed_epaper_panel_refresh_area(p, &full, mono, 100,
+        SEEED_EPAPER_PIXEL_FORMAT_MONO1_MSB, SEEED_EPAPER_REFRESH_FULL) == ESP_OK);
+    assert(seeed_epaper_panel_standby(p) == ESP_OK);
+    const seeed_epaper_area_t small = {8, 3, 8, 1};
+    for (unsigned cycle = 0; cycle < 6; ++cycle) {
+        const uint8_t pixel = (uint8_t)(0x3c ^ cycle);
+        clear_trace();
+        assert(seeed_epaper_panel_write_bitmap(p, &small, &pixel, 1,
+            SEEED_EPAPER_PIXEL_FORMAT_MONO1_MSB, SEEED_EPAPER_REFRESH_PARTIAL) == ESP_OK);
+        assert(!p->standby && p->prepared && !p->partial_after_standby);
+        assert(seeed_epaper_panel_commit(p, &small, SEEED_EPAPER_REFRESH_PARTIAL) == ESP_OK);
+        assert(seeed_epaper_panel_standby(p) == ESP_OK && p->standby);
+        const uint8_t *updates = streams[0x22];
+        if (cycle == 0) {
+            assert(lengths[0x22] == 2 && updates[0] == 0xfc && updates[1] == 0x03);
+        } else {
+            assert(lengths[0x22] == 3);
+            assert(updates[0] == 0xc0 && updates[1] == 0xfc && updates[2] == 0x03);
+        }
+        assert(p->previous_framebuffer[301] == pixel);
+    }
+    clear_trace();
+    assert(seeed_epaper_panel_resume(p) == ESP_OK && !p->partial_after_standby);
+    assert(lengths[0x22] == 1 && streams[0x22][0] == 0xc0);
+    destroy(p);
+}
+
 static void test_ssd1677_gray_partial_fallback(void) {
     seeed_epaper_panel_handle_t p = create(0, SEEED_EPAPER_PANEL_SSD1677);
     memset(mono, 0xa5, sizeof mono);
@@ -315,6 +346,7 @@ static void test_ssd1677_gray_partial_fallback(void) {
 int main(void) {
     test_detection(); test_allocation_failures(); test_ssd2677(); test_ssd1677(); test_mirrored_gray_shadow();
     test_ssd1677_mirrored_region(); test_ssd1677_gray_partial_fallback();
+    test_ssd1677_repeated_standby_partial();
     puts("ePaper actual-driver integration tests passed");
     return 0;
 }
