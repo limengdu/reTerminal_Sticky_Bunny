@@ -21,6 +21,7 @@ typedef struct seeed_epaper_panel_t *seeed_epaper_panel_handle_t;
 typedef enum {
     SEEED_EPAPER_PANEL_UC8179 = 0,
     SEEED_EPAPER_PANEL_SSD1677,
+    SEEED_EPAPER_PANEL_SSD2677,
 } seeed_epaper_panel_model_t;
 
 typedef enum {
@@ -53,10 +54,31 @@ typedef struct {
 } seeed_epaper_panel_info_t;
 
 typedef struct {
-    // SPI handle is created by the board layer so shared-bus ownership remains explicit.
-    // SPI句柄由板级代码创建，便于后续明确管理屏幕与SD卡的共享总线。
+    bool temperature_valid;
+    bool temperature_external;
+    uint8_t temperature_c;
+    uint32_t latch_ms;
+    uint32_t temperature_ms;
+    uint32_t latch_apply_ms;
+    uint32_t stream_ms;
+    uint32_t stream_command_ms;
+    uint32_t stream_encode_ms;
+    uint32_t stream_spi_ms;
+    uint32_t drive_ms;
+    uint32_t state_sync_ms;
+    uint32_t power_on_ms;
+    uint32_t power_on_settle_ms;
+    uint32_t refresh_ms;
+    uint32_t power_off_ms;
+    uint32_t power_off_settle_ms;
+} seeed_epaper_refresh_timing_t;
+
+typedef struct {
+    // Shared SPI bus and device remain owned by the board layer.
+    // 共用 SPI 总线及设备句柄仍由板级代码管理。
     spi_device_handle_t spi_handle;
     gpio_num_t pin_dc;
+    gpio_num_t pin_cs;
     gpio_num_t pin_rst;
     gpio_num_t pin_busy;
     gpio_num_t pin_enable;
@@ -65,21 +87,18 @@ typedef struct {
     uint16_t reset_high_ms;
     uint8_t busy_level;
     uint8_t enable_level;
+    bool busy_level_valid;
+    bool enable_level_valid;
+    bool manual_cs;
     bool mirror_x;
 } seeed_epaper_panel_config_t;
 
 /**
- * Creates a controller instance without taking ownership of the SPI handle.
- * 创建屏幕控制器实例，但不接管SPI句柄的释放责任。
- *
- * @param model Controller model selected from seeed_epaper_panel_model_t.
- *              从seeed_epaper_panel_model_t中选择的控制器型号。
- * @param config GPIO, timing and SPI configuration; must remain valid for this call.
- *               GPIO、时序和SPI配置，本次调用期间必须有效。
- * @param ret_panel Receives the created handle when ESP_OK is returned.
- *                  返回ESP_OK时，通过该参数带回创建好的句柄。
- * @return ESP_OK on success, otherwise an ESP-IDF error code.
- *         成功返回ESP_OK，失败返回对应的ESP-IDF错误码。
+ * Create a panel without taking ownership of the externally managed SPI handle.
+ * Either SSD model probes register 0x70: 0x07 selects SSD2677, other successful
+ * reads select legacy SSD1677. SPI errors are returned, not silently ignored.
+ * Use a receive-capable half-duplex SPI device; UC8179 is never auto-detected.
+ * 自动识别两种 SSD 控制器；SPI 读取失败会返回错误。SPI 总线由调用方管理。
  */
 esp_err_t seeed_epaper_new_panel(seeed_epaper_panel_model_t model,
                                  const seeed_epaper_panel_config_t *config,
@@ -90,13 +109,28 @@ esp_err_t seeed_epaper_panel_del(seeed_epaper_panel_handle_t panel);
 esp_err_t seeed_epaper_panel_get_info(seeed_epaper_panel_handle_t panel,
                                       seeed_epaper_panel_info_t *ret_info);
 
+esp_err_t seeed_epaper_panel_get_model(seeed_epaper_panel_handle_t panel,
+                                       seeed_epaper_panel_model_t *ret_model);
+
+esp_err_t seeed_epaper_panel_get_last_refresh_timing(seeed_epaper_panel_handle_t panel,
+                                                      seeed_epaper_refresh_timing_t *ret_timing);
+
+esp_err_t seeed_epaper_panel_set_external_temperature(seeed_epaper_panel_handle_t panel,
+                                                      float temperature_c);
+
+esp_err_t seeed_epaper_panel_clear_external_temperature(seeed_epaper_panel_handle_t panel);
+
+esp_err_t seeed_epaper_panel_reset(seeed_epaper_panel_handle_t panel);
+
+esp_err_t seeed_epaper_panel_wait_ready(seeed_epaper_panel_handle_t panel);
+
+esp_err_t seeed_epaper_panel_read_register8(seeed_epaper_panel_handle_t panel,
+                                            uint8_t command,
+                                            uint8_t *ret_value);
+
 esp_err_t seeed_epaper_panel_prepare(seeed_epaper_panel_handle_t panel,
                                      seeed_epaper_refresh_mode_t mode);
 
-/**
- * Converts one source image into the panel-native format and writes panel RAM.
- * 将一张源图转换为屏幕原生格式，并写入控制器显存；此函数本身不触发物理刷新。
- */
 esp_err_t seeed_epaper_panel_write_bitmap(seeed_epaper_panel_handle_t panel,
                                           const seeed_epaper_area_t *area,
                                           const void *pixels,
@@ -112,26 +146,18 @@ esp_err_t seeed_epaper_panel_write_bitmap_diff(seeed_epaper_panel_handle_t panel
                                                seeed_epaper_pixel_format_t input_format,
                                                seeed_epaper_refresh_mode_t mode);
 
-// Writes packed 2-bit grayscale pixels before a gray4 commit.
-// 写入打包后的2位灰度像素，随后需要调用commit触发四级灰度刷新。
+// Write packed 2bpp pixels: 0=black, 1=dark gray, 2=light gray, 3=white.
+// 写入打包的 2bpp 像素：0=黑、1=深灰、2=浅灰、3=白。
 esp_err_t seeed_epaper_panel_write_bitmap_gray4(
     seeed_epaper_panel_handle_t panel,
     const seeed_epaper_area_t *area,
     const uint8_t *pixels,
     size_t src_stride_bytes);
 
-/**
- * Triggers the physical refresh for image data already written into panel RAM.
- * 对已经写入控制器显存的数据触发实体屏幕刷新。
- */
 esp_err_t seeed_epaper_panel_commit(seeed_epaper_panel_handle_t panel,
                                     const seeed_epaper_area_t *area,
                                     seeed_epaper_refresh_mode_t mode);
 
-/**
- * Convenience operation that prepares, writes and refreshes one image area.
- * 组合操作：依次完成刷新准备、图像写入和实体屏幕刷新。
- */
 esp_err_t seeed_epaper_panel_refresh_area(seeed_epaper_panel_handle_t panel,
                                           const seeed_epaper_area_t *area,
                                           const void *pixels,
@@ -143,9 +169,13 @@ esp_err_t seeed_epaper_panel_clear(seeed_epaper_panel_handle_t panel,
                                    bool white,
                                    seeed_epaper_refresh_mode_t mode);
 
-// Enters controller deep sleep; the e-paper image remains visible without power.
-// 让控制器进入深度睡眠；电子纸断电后仍会保留当前画面。
 esp_err_t seeed_epaper_panel_sleep(seeed_epaper_panel_handle_t panel);
+
+// Disable analog power while retaining RAM. prepare() resumes on the next update.
+// 关闭模拟电源并保留显存；下一次 prepare() 自动恢复。
+esp_err_t seeed_epaper_panel_standby(seeed_epaper_panel_handle_t panel);
+
+esp_err_t seeed_epaper_panel_resume(seeed_epaper_panel_handle_t panel);
 
 esp_err_t seeed_epaper_panel_wakeup(seeed_epaper_panel_handle_t panel,
                                     seeed_epaper_refresh_mode_t mode);

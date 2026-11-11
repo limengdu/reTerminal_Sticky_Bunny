@@ -22,7 +22,7 @@
 #define PCF8563_I2C_ADDR 0x51
 #define LSM6DS3_I2C_ADDR 0x6A
 
-// SSD1677 e-paper panel on SPI2 / SPI2总线上的SSD1677电子纸屏幕
+// SSD1677/SSD2677 e-paper panel on SPI2 / SPI2总线上的双版本电子纸屏幕
 #define PIN_EPD_MOSI 14
 #define PIN_EPD_CLK 13
 #define PIN_EPD_MISO 12

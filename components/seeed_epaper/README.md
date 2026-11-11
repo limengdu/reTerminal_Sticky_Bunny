@@ -1,38 +1,37 @@
 # SEEED_EPAPER
 
-`SEEED_EPAPER` 是一个面向 ESP-IDF 的模块化墨水屏组件，当前先支持：
+ESP-IDF panel component with a shared framebuffer/SPI/session core and separate
+UC8179, SSD1677 and SSD2677 drivers. SPI devices are created by the board layer.
 
-- `UC8179`：reTerminal E1001
-- `SSD1677`：reTerminal E1005
+## Controller selection
 
-设计目标：
+`seeed_epaper_new_panel()` with either SSD model probes register `0x70`.
+`0x07` selects SSD2677; any other successful read selects SSD1677. Failed SPI
+reads return an error. `seeed_epaper_panel_get_model()` returns the actual
+selection. UC8179 bypasses probing.
 
-- SPI 总线由外部创建，组件只接收 `spi_device_handle_t`
-- `panel` 核心与 `driver` 控制器实现分层，后续加新屏只需补 driver
-- 对外统一支持整屏刷新、任意区域局刷、1bpp 原生输入和 4/8/16bit 转 1bpp
-- 为后续灰度 / 彩色扩展预留能力描述与像素格式枚举
+The SPI device must support receive-only, half-duplex transactions. Board wiring,
+MISO routing and CS ownership must be configured by the caller. Automatic
+selection sets the model-specific BUSY polarity, reset delays and timeout.
 
-## 对外 API
+## Refresh paths
 
-- `seeed_epaper_new_panel()`：创建面板句柄
-- `seeed_epaper_panel_prepare()`：准备一次 full / partial 会话
-- `seeed_epaper_panel_write_bitmap()`：写入一块区域到显存
-- `seeed_epaper_panel_commit()`：触发物理刷新
-- `seeed_epaper_panel_refresh_area()`：单次区域写入并刷新
-- `seeed_epaper_panel_sleep()`：进入休眠
+- Full monochrome: `prepare` + `write_bitmap` + `commit`, or `refresh_area`.
+- Partial: uses previous/current images and requires a full baseline first.
+- Four-level grayscale: `write_bitmap_gray4` + `commit(GRAY4)`.
+- SSD2677 retains full current/previous mono framebuffers and a packed gray4
+  buffer. At commit it streams 96,000 bytes through command `0x10`; a small dirty
+  rectangle does not reduce that transfer size.
+- `standby` disables analog power while preserving RAM; `prepare` resumes the
+  panel for the next update. Call standby when an application is idle.
+- `sleep` enters deep sleep and invalidates the partial baseline.
 
-推荐给 LVGL9 的接法：
+Sticky Bunny calls standby after each successful refresh. Controller detection
+is always logged; detailed timing is gated by `STICKY_LOG_DISPLAY_TIMING_ENABLED`.
 
-1. `flush_cb` 中对每个 chunk 调 `prepare + write_bitmap`
-2. `lv_display_flush_is_last(display)` 为真时再 `commit`
-3. 首帧走 `FULL`，后续走 `PARTIAL`
-4. `LV_COLOR_DEPTH=1` 时直接传 `MONO1_MSB`
-5. `LV_COLOR_DEPTH=8/16` 时传 `GRAY8` / `RGB565`，组件内部阈值转换为 1bpp
+The driver command tables and waveforms originate from the supplied Seeed
+SSD1677/SSD2677 compatibility reference. The integration adds cleanup on failed
+creation, mirrored gray4 comparison-state correction, legacy SSD1677 software mirroring
+and hardware reset, and a fresh mono baseline after SSD1677 gray4.
 
-## 目录结构
-
-- `epaper_panel.h`：统一公共接口
-- `epaper_panel.c`：GPIO / SPI / 像素转换 / 会话管理
-- `driver/uc8179.c`：UC8179 控制器实现
-- `driver/ssd1677.c`：SSD1677 控制器实现
-
+See [hardware validation](../../docs/screen_compatibility.md).

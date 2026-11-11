@@ -21,17 +21,28 @@ typedef struct seeed_epaper_panel_t {
     const seeed_epaper_driver_t *driver;
     bool prepared;
     bool sleeping;
+    bool standby;
+    bool partial_after_standby;
     bool partial_ready;
+    bool refresh_powered;
     seeed_epaper_refresh_mode_t active_mode;
     bool dirty_valid;
     seeed_epaper_area_t dirty_area;
     uint8_t *framebuffer;
     size_t framebuffer_stride;
     size_t framebuffer_len;
+    uint8_t *previous_framebuffer;
+    size_t previous_framebuffer_len;
+    uint8_t *gray4_framebuffer;
+    size_t gray4_framebuffer_len;
+    bool gray4_valid;
     uint8_t *spi_tx_buffer;
     size_t spi_tx_buffer_len;
     SemaphoreHandle_t busy_sem;
     bool busy_isr_attached;
+    bool external_temperature_valid;
+    float external_temperature_c;
+    seeed_epaper_refresh_timing_t last_refresh_timing;
 } seeed_epaper_panel_t;
 
 struct seeed_epaper_driver_t {
@@ -42,12 +53,15 @@ struct seeed_epaper_driver_t {
     esp_err_t (*write_image)(seeed_epaper_panel_t *panel, const uint8_t *buffer, size_t len, bool previous_plane);
     esp_err_t (*refresh)(seeed_epaper_panel_t *panel, seeed_epaper_refresh_mode_t mode);
     esp_err_t (*sleep)(seeed_epaper_panel_t *panel);
+    esp_err_t (*standby)(seeed_epaper_panel_t *panel);
+    esp_err_t (*resume)(seeed_epaper_panel_t *panel);
 };
 
 esp_err_t seeed_epaper_panel_reset(seeed_epaper_panel_t *panel);
 esp_err_t seeed_epaper_panel_wait_ready(seeed_epaper_panel_t *panel);
 esp_err_t seeed_epaper_panel_write_command(seeed_epaper_panel_t *panel, uint8_t command);
 esp_err_t seeed_epaper_panel_write_data(seeed_epaper_panel_t *panel, const void *data, size_t len);
+esp_err_t seeed_epaper_panel_read_data(seeed_epaper_panel_t *panel, uint8_t *data);
 void seeed_epaper_panel_set_dirty(seeed_epaper_panel_t *panel, const seeed_epaper_area_t *area);
 bool seeed_epaper_panel_resolve_area(seeed_epaper_panel_t *panel,
                                      const seeed_epaper_area_t *requested,
@@ -56,3 +70,4 @@ void seeed_epaper_panel_mirror_x(uint8_t *buffer, uint16_t width, uint16_t heigh
 
 const seeed_epaper_driver_t *seeed_epaper_uc8179_driver(void);
 const seeed_epaper_driver_t *seeed_epaper_ssd1677_driver(void);
+const seeed_epaper_driver_t *seeed_epaper_ssd2677_driver(void);

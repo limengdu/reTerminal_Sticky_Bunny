@@ -18,7 +18,7 @@
   <img alt="ESP32-S3" src="https://img.shields.io/badge/MCU-ESP32--S3-000000?style=flat-square">
   <img alt="ESP-IDF 5.4.1" src="https://img.shields.io/badge/ESP--IDF-5.4.1-000000?style=flat-square">
   <img alt="PlatformIO" src="https://img.shields.io/badge/build-PlatformIO-000000?style=flat-square">
-  <img alt="Firmware 0.1.2" src="https://img.shields.io/badge/firmware-0.1.2-000000?style=flat-square">
+  <img alt="Firmware 0.1.3" src="https://img.shields.io/badge/firmware-0.1.3-000000?style=flat-square">
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-000000?style=flat-square">
   <a href="https://github.com/limengdu/reTerminal_Sticky_Bunny/actions/workflows/build.yml"><img alt="Build and test" src="https://github.com/limengdu/reTerminal_Sticky_Bunny/actions/workflows/build.yml/badge.svg"></a>
 </p>
@@ -34,6 +34,15 @@ reTerminal Sticky Bunny turns the Seeed Studio **reTerminal Sticky** into a smal
 Learn more about the device on the [Sticky official website](https://www.seeedstudio.com/sticky/) and the [reTerminal Sticky product page](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html).
 
 This repository contains the complete PlatformIO/ESP-IDF firmware, original monochrome artwork, host-side behavior and rendering tests, release packaging, and developer documentation.
+
+## Screen revision compatibility
+
+Firmware **0.1.3** uses one image for Sticky displays with **SSD1677 or SSD2677**. At boot it reads register `0x70`: ID `0x07` selects SSD2677; other successfully read values select the legacy SSD1677 driver. An SPI read error aborts initialization. The boot log reports the ID and selected controller.
+
+Both paths support full monochrome, partial updates and four-level grayscale. Controller-specific BUSY polarity, waveform selection, previous/current frame packing and sleep sequences are selected automatically. The display enters standby after each refresh so the analog supply is not left enabled while Bunny is idle. No menu choice or separate firmware is needed.
+
+See [the compatibility test plan](docs/screen_compatibility.md) for hardware checks and verification limits.
+
 
 ## Why this project is different
 

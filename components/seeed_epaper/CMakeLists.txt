@@ -3,6 +3,7 @@ idf_component_register(
         "epaper_panel.c"
         "driver/uc8179.c"
         "driver/ssd1677.c"
+        "driver/ssd2677.c"
     INCLUDE_DIRS
         "."
     REQUIRES

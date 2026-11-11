@@ -35,6 +35,17 @@ std::atomic<bool> s_battery_overlay_enabled{true};
 std::atomic<bool> s_battery_overlay_sleep_layout{false};
 uint8_t s_fast_app_transition_count = 0U;
 
+esp_err_t finish_refresh(esp_err_t result)
+{
+    // Preserve the comparison frame, but disable the panel's high-voltage supply
+    // while Bunny is idle. prepare() resumes automatically on the next update.
+    // 保留对比帧，空闲时关闭屏幕高压；下一次刷新由 prepare() 自动恢复。
+    if (result != ESP_OK) {
+        return result;
+    }
+    return seeed_epaper_panel_standby(s_panel);
+}
+
 void draw_battery_overlay_if_enabled()
 {
     if (s_battery_overlay_enabled.load(std::memory_order_acquire)) {
@@ -97,6 +108,7 @@ esp_err_t sticky_display_init()
     app_log_register_tag(kTag);
     app_log_register_tag("seeed_epaper");
     app_log_register_tag("ssd1677");
+    app_log_register_tag("ssd2677");
 
     if (s_panel != nullptr && s_canvas != nullptr) {
         STICKY_LOGD(kTag, "display=init state=already_ready");
@@ -153,6 +165,9 @@ esp_err_t sticky_display_init()
     device_config.mode = 0;
     device_config.spics_io_num = PIN_EPD_CS;
     device_config.queue_size = 1;
+    // Chip-ID and SSD2677 temperature reads are receive-only transactions.
+    // 芯片 ID 和 SSD2677 温度读取使用独立的半双工接收阶段。
+    device_config.flags = SPI_DEVICE_HALFDUPLEX;
     ESP_RETURN_ON_ERROR(spi_bus_add_device(SPI2_HOST, &device_config, &s_spi_device),
                         "sticky_display", "add display to SPI2");
     STICKY_LOGD(kTag,
@@ -162,6 +177,7 @@ esp_err_t sticky_display_init()
 
     seeed_epaper_panel_config_t panel_config = {};
     panel_config.spi_handle = s_spi_device;
+    panel_config.pin_cs = static_cast<gpio_num_t>(PIN_EPD_CS);
     panel_config.pin_dc = static_cast<gpio_num_t>(PIN_EPD_DC);
     panel_config.pin_rst = static_cast<gpio_num_t>(PIN_EPD_RST);
     panel_config.pin_busy = static_cast<gpio_num_t>(PIN_EPD_BUSY);
@@ -170,13 +186,19 @@ esp_err_t sticky_display_init()
     panel_config.reset_low_ms = 10;
     panel_config.reset_high_ms = 10;
     panel_config.busy_level = 1;
+    panel_config.busy_level_valid = true;
     panel_config.enable_level = 1;
+    panel_config.enable_level_valid = true;
     panel_config.mirror_x = true;
     ESP_RETURN_ON_ERROR(
         seeed_epaper_new_panel(SEEED_EPAPER_PANEL_SSD1677, &panel_config, &s_panel),
-        "sticky_display", "create SSD1677 panel");
+        "sticky_display", "detect and create Sticky panel");
+    seeed_epaper_panel_model_t detected_model;
+    ESP_RETURN_ON_ERROR(seeed_epaper_panel_get_model(s_panel, &detected_model),
+                        "sticky_display", "read detected panel model");
     STICKY_LOGI(kTag,
-                "display=panel_ready controller=SSD1677 dc=%d rst=%d busy=%d result=ok",
+                "display=panel_ready controller=%s dc=%d rst=%d busy=%d result=ok",
+                detected_model == SEEED_EPAPER_PANEL_SSD2677 ? "SSD2677" : "SSD1677",
                 PIN_EPD_DC,
                 PIN_EPD_RST,
                 PIN_EPD_BUSY);
@@ -236,7 +258,8 @@ esp_err_t sticky_display_refresh()
             s_panel, &full_screen, s_rotated_framebuffer, s_canvas->stride()),
         "sticky_display", "write gray4 framebuffer");
     const esp_err_t result =
-        seeed_epaper_panel_commit(s_panel, &full_screen, SEEED_EPAPER_REFRESH_GRAY4);
+        finish_refresh(seeed_epaper_panel_commit(
+            s_panel, &full_screen, SEEED_EPAPER_REFRESH_GRAY4));
     STICKY_LOGI(kTag,
                 "display=refresh_done mode=gray4 elapsed_ms=%lld result=%s",
                 static_cast<long long>((esp_timer_get_time() - refresh_started_us) / 1000),
@@ -251,11 +274,9 @@ esp_err_t sticky_display_refresh_partial()
         return ESP_ERR_INVALID_STATE;
     }
 
-    // SSD1677 applies its partial waveform across the panel even when only a
-    // small RAM window is written. Send a complete monochrome comparison frame
-    // so unchanged pixels have identical previous/current values and remain
-    // visually untouched. Callers should change only the intended Canvas area.
-    // SSD1677局刷仍会应用全屏波形，因此发送完整对比帧来保护没有变化的像素。
+    // Both controllers need a complete comparison frame for partial updates;
+    // SSD2677 packs previous/current pixels into one full-screen 2bpp stream.
+    // 两种控制器局刷都需要完整对比帧；SSD2677 将前后帧打包为全屏 2bpp 数据。
     draw_battery_overlay_if_enabled();
     rotate_framebuffer_180(s_canvas->data(), s_rotated_framebuffer);
     convert_gray4_to_monochrome_in_place(s_rotated_framebuffer);
@@ -263,13 +284,13 @@ esp_err_t sticky_display_refresh_partial()
     const seeed_epaper_area_t full_screen = {
         0, 0, kStickyDisplayWidth, kStickyDisplayHeight,
     };
-    return seeed_epaper_panel_refresh_area(
+    return finish_refresh(seeed_epaper_panel_refresh_area(
         s_panel,
         &full_screen,
         s_rotated_framebuffer,
         kMonochromeStride,
         SEEED_EPAPER_PIXEL_FORMAT_MONO1_MSB,
-        SEEED_EPAPER_REFRESH_PARTIAL);
+        SEEED_EPAPER_REFRESH_PARTIAL));
 }
 
 esp_err_t sticky_display_refresh_monochrome()
@@ -300,13 +321,13 @@ esp_err_t sticky_display_refresh_monochrome()
     const seeed_epaper_area_t full_screen = {
         0, 0, kStickyDisplayWidth, kStickyDisplayHeight,
     };
-    const esp_err_t result = seeed_epaper_panel_refresh_area(
+    const esp_err_t result = finish_refresh(seeed_epaper_panel_refresh_area(
         s_panel,
         &full_screen,
         s_rotated_framebuffer,
         kMonochromeStride,
         SEEED_EPAPER_PIXEL_FORMAT_MONO1_MSB,
-        SEEED_EPAPER_REFRESH_FULL);
+        SEEED_EPAPER_REFRESH_FULL));
     STICKY_LOGI(kTag,
                 "display=refresh_done mode=monochrome_full elapsed_ms=%lld result=%s",
                 static_cast<long long>((esp_timer_get_time() - refresh_started_us) / 1000),
@@ -364,7 +385,7 @@ esp_err_t sticky_display_clear()
     STICKY_LOGI(kTag, "display=clear_begin color=white mode=full");
     s_canvas->clear();
     const esp_err_t result =
-        seeed_epaper_panel_clear(s_panel, true, SEEED_EPAPER_REFRESH_FULL);
+        finish_refresh(seeed_epaper_panel_clear(s_panel, true, SEEED_EPAPER_REFRESH_FULL));
     STICKY_LOGI(kTag,
                 "display=clear_done color=white mode=full elapsed_ms=%lld result=%s",
                 static_cast<long long>(

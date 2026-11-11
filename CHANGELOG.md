@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3 - 2026-11-11
+
+- Automatically detect SSD1677 and SSD2677 at startup and use one firmware for both screen revisions.
+- Add SSD2677 full, partial and four-level grayscale refresh, temperature waveforms, previous-frame tracking and sleep support.
+- Enable half-duplex SPI reads, log the selected controller and enter standby between refreshes.
+- Add host driver regression tests and document the required two-revision hardware validation.
+- Match Playground release flashing with DIO, 80 MHz and 32 MB flash.
+
 ## 0.1.0 - 2026-08-26
 
 首个可发布版本，包含：

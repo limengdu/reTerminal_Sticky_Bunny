@@ -18,7 +18,7 @@
   <img alt="ESP32-S3" src="https://img.shields.io/badge/MCU-ESP32--S3-000000?style=flat-square">
   <img alt="ESP-IDF 5.4.1" src="https://img.shields.io/badge/ESP--IDF-5.4.1-000000?style=flat-square">
   <img alt="PlatformIO" src="https://img.shields.io/badge/build-PlatformIO-000000?style=flat-square">
-  <img alt="Firmware 0.1.2" src="https://img.shields.io/badge/firmware-0.1.2-000000?style=flat-square">
+  <img alt="Firmware 0.1.3" src="https://img.shields.io/badge/firmware-0.1.3-000000?style=flat-square">
   <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-000000?style=flat-square">
   <a href="https://github.com/limengdu/reTerminal_Sticky_Bunny/actions/workflows/build.yml"><img alt="Build and test" src="https://github.com/limengdu/reTerminal_Sticky_Bunny/actions/workflows/build.yml/badge.svg"></a>
 </p>
@@ -34,6 +34,15 @@ reTerminal Sticky Bunny は、Seeed Studio の **reTerminal Sticky** を小さ�
 デバイスの詳細は [Sticky 公式サイト](https://www.seeedstudio.com/sticky/) と [reTerminal Sticky 製品ページ](https://www.seeedstudio.com/reTerminal-Sticky-p-6861.html) をご覧ください。
 
 このリポジトリには、PlatformIO/ESP-IDF ファームウェア一式、オリジナルのモノクロアートワーク、ホスト側の挙動・描画テスト、リリースパッケージング、開発者向けドキュメントが含まれています。
+
+## 新旧ディスプレイの互換性
+
+ファームウェア **0.1.3** は、Sticky の **SSD1677 と SSD2677** の両方を単一イメージでサポートします。起動時にレジスター `0x70` を読み取り、ID が `0x07` なら SSD2677、それ以外の正常に読み取れた値なら従来の SSD1677 を選択します。SPI 読み取りエラー時は初期化を中止します。起動ログで ID と選択されたコントローラーを確認できます。
+
+モノクロ全画面更新、部分更新、4 階調表示に対応し、BUSY 極性、波形、前後フレームのパッキング、スリープ処理を自動で切り替えます。更新後はスタンバイに入り、待機中の高電圧電源を停止します。モデルの手動選択や別々のファームウェアは不要です。
+
+実機での確認手順と検証範囲は[互換性テスト計画](docs/screen_compatibility.md)を参照してください。
+
 
 ## このプロジェクトが特別な理由
 
