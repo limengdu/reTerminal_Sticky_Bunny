@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align the ESP-IDF application descriptor with runtime version 0.1.3 and check both version declarations in host tests. The version-aligned rebuild requires its own physical-device acceptance.
+
 - Keep repeated SSD1677 partial refreshes synchronized with standby/resume power state, including tutorial page navigation.
 - Cover six consecutive SSD1677 standby/partial cycles in the actual-driver regression suite.
 

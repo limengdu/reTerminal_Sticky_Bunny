@@ -12,7 +12,8 @@ readonly COMMON_FLAGS=(-std=c++17 -Wall -Wextra -Werror)
 mkdir -p "${BUILD_DIR}"
 cd "${PROJECT_ROOT}"
 
-passed_count=0
+python3 tools/check_firmware_version.py
+passed_count=1
 
 compile_and_run() {
     local test_name="$1"
@@ -236,7 +237,7 @@ compile_and_run sticky_display_spi_config_test \
     -Itest/epaper_stubs -Isrc/board \
     test/sticky_display_spi_config_test.cpp
 
-echo "[host-test] PASS ${passed_count}/31"
+echo "[host-test] PASS ${passed_count}/32"
 
 # Compile the real panel drivers with simulated GPIO/SPI and controller responses.
 # 使用模拟 GPIO/SPI 编译并验证真实屏幕驱动。
