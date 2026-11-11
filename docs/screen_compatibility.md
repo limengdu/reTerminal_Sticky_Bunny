@@ -11,10 +11,16 @@ candidate.
 - ID `0x07`: SSD2677, BUSY low, 30 s timeout, 20/10 ms reset.
 - Other successful reads: SSD1677, BUSY high, 8 s timeout, 10/10 ms reset.
 - SPI errors: initialization fails. A floating read line that returns `0x00` or
-  `0xFF` can still look like legacy hardware; check the boot log and wiring.
-- SPI2 retains the board's MOSI 14, MISO 12 and CLK 13 assignments. Half-duplex
-  transactions allow receive-only chip ID and temperature reads. No three-wire
-  wiring is assumed.
+  `0xFF` still selects the legacy driver and emits a warning; physical validation
+  must verify the detected controller and successful refresh.
+- SPI2 retains MOSI 14, MISO 12 and CLK 13. The display device uses ESP-IDF's
+  `HALFDUPLEX | 3WIRE | NO_DUMMY`: GPIO14 carries both panel writes and readback;
+  GPIO12 remains the MicroSD return line. The panel retains separate DC and
+  eight-bit commands.
+- The display device runs at 2 MHz for reads and writes. SSD2677 specifies a
+  minimum 400 ns read cycle (2.5 MHz maximum) and 180 ns high/low periods.
+  A 96,000-byte transfer therefore takes about 384 ms of wire time, approximately
+  307 ms more than at 10 MHz. The SD device retains its own clock configuration.
 - SSD2677 stages current and previous 48,000-byte mono frames and sends a
   96,000-byte two-bit stream. Four-level grayscale needs another 96,000-byte
   buffer. Allocation prefers PSRAM.
@@ -29,6 +35,22 @@ candidate.
 The SSD2677 register `0x61` values `03 20 02 A8` are retained verbatim from the
 supplied reference. The logical image is 800 x 480; the controller scan register
 must not be inferred from the framebuffer height without vendor confirmation.
+
+## Readback wiring and timing references
+
+- [Seeed Sticky schematic](https://files.seeedstudio.com/wiki/reterminal_sticky/res/reTerminal_Sticky_Schematic_diagram_260609.pdf),
+  sheets 5 and 10: GPIO14/EP_SDI connects directly to panel SDA; GPIO12 serves SD.
+- [Seeed Sticky hardware overview](https://www.seeedstudio.com/sticky/docs/en/device-guide/hardware-overview/):
+  display SDI is GPIO14; MicroSD MISO is GPIO12.
+- [SSD2677 datasheet](https://files.waveshare.com/wiki/common/SSD2677_1.0.pdf),
+  sections 5, 6.1.2 and 12.1: bidirectional SDA, separate DC, and read timing.
+- [ESP-IDF SPI device options](https://docs.espressif.com/projects/esp-idf/en/v5.4.1/esp32s3/api-reference/peripherals/spi_master.html):
+  `SPI_DEVICE_3WIRE` uses MOSI for transmission and reception.
+
+The board configuration test compiles the same configuration helper used by the
+firmware and checks bidirectional routing, the 2 MHz clock and shared SD pins.
+The controller tests separately inject SPI responses to verify driver behavior.
+Both types of checks require physical readback and image validation afterward.
 
 ## Automated checks
 

@@ -10,9 +10,14 @@ UC8179, SSD1677 and SSD2677 drivers. SPI devices are created by the board layer.
 reads return an error. `seeed_epaper_panel_get_model()` returns the actual
 selection. UC8179 bypasses probing.
 
-The SPI device must support receive-only, half-duplex transactions. Board wiring,
-MISO routing and CS ownership must be configured by the caller. Automatic
-selection sets the model-specific BUSY polarity, reset delays and timeout.
+The SPI device must support receive-only, half-duplex transactions. Sticky uses
+`SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_3WIRE | SPI_DEVICE_NO_DUMMY` at 2 MHz:
+commands and register reads share the panel SDA line on GPIO14. GPIO12 remains
+the MicroSD return line on the shared bus. ESP-IDF's `3WIRE` option selects the
+bidirectional data line; the panel still uses its separate DC pin and eight-bit
+commands. Automatic selection sets the model-specific BUSY polarity, reset
+delays and timeout. Values `0x00` and `0xFF` retain the vendor's legacy selection
+and emit a readback warning for hardware diagnosis.
 
 ## Refresh paths
 

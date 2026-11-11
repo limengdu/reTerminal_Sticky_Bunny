@@ -1084,6 +1084,11 @@ static esp_err_t resolve_panel_model(seeed_epaper_panel_t *panel, seeed_epaper_p
         ESP_RETURN_ON_ERROR(seeed_epaper_panel_read_data(panel, &chip_id), TAG, "probe id read failed");
 
         resolved_model = chip_id == kSsd2677ChipId ? SEEED_EPAPER_PANEL_SSD2677 : SEEED_EPAPER_PANEL_SSD1677;
+        if (chip_id == 0x00U || chip_id == 0xFFU) {
+            ESP_LOGW(TAG,
+                     "panel probe: chip_id=0x%02X legacy fallback; verify SDA readback if panel stays busy",
+                     chip_id);
+        }
         // Keep controller detection visible even when timing traces are disabled.
         // 即使关闭高频时序日志，也保留芯片识别结果用于硬件诊断。
         ESP_LOGI(TAG,

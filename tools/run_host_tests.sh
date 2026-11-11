@@ -232,7 +232,11 @@ compile_and_run sticky_shake_detector_test \
     test/sticky_shake_detector_test.cpp \
     src/sensors/sticky_shake_detector.cpp
 
-echo "[host-test] PASS ${passed_count}/30"
+compile_and_run sticky_display_spi_config_test \
+    -Itest/epaper_stubs -Isrc/board \
+    test/sticky_display_spi_config_test.cpp
+
+echo "[host-test] PASS ${passed_count}/31"
 
 # Compile the real panel drivers with simulated GPIO/SPI and controller responses.
 # 使用模拟 GPIO/SPI 编译并验证真实屏幕驱动。

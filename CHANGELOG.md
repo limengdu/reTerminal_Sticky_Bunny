@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Route display readback through bidirectional SDA on GPIO14 at 2 MHz, matching SSD2677 read timing while preserving the shared MicroSD return line.
+- Add a board SPI configuration regression test and boot diagnostics for readback setup.
+
 ## 0.1.3 - 2026-11-11
 
 - Automatically detect SSD1677 and SSD2677 at startup and use one firmware for both screen revisions.

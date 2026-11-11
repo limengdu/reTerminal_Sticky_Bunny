@@ -97,7 +97,8 @@ typedef struct {
  * Create a panel without taking ownership of the externally managed SPI handle.
  * Either SSD model probes register 0x70: 0x07 selects SSD2677, other successful
  * reads select legacy SSD1677. SPI errors are returned, not silently ignored.
- * Use a receive-capable half-duplex SPI device; UC8179 is never auto-detected.
+ * Sticky uses HALFDUPLEX | 3WIRE at 2 MHz for bidirectional SDA on GPIO14.
+ * Match SPI routing and read timing to the board; UC8179 is never auto-detected.
  * 自动识别两种 SSD 控制器；SPI 读取失败会返回错误。SPI 总线由调用方管理。
  */
 esp_err_t seeed_epaper_new_panel(seeed_epaper_panel_model_t model,

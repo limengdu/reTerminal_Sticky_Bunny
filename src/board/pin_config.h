@@ -25,6 +25,8 @@
 // SSD1677/SSD2677 e-paper panel on SPI2 / SPI2总线上的双版本电子纸屏幕
 #define PIN_EPD_MOSI 14
 #define PIN_EPD_CLK 13
+// GPIO12 is the shared bus return line for MicroSD. Panel reads use GPIO14.
+// GPIO12 是 MicroSD 的总线返回线，屏幕读取使用 GPIO14。
 #define PIN_EPD_MISO 12
 #define PIN_EPD_CS 15
 #define PIN_EPD_DC 16

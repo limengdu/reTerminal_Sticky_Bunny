@@ -39,6 +39,8 @@ This repository contains the complete PlatformIO/ESP-IDF firmware, original mono
 
 Firmware **0.1.3** uses one image for Sticky displays with **SSD1677 or SSD2677**. At boot it reads register `0x70`: ID `0x07` selects SSD2677; other successfully read values select the legacy SSD1677 driver. An SPI read error aborts initialization. The boot log reports the ID and selected controller.
 
+Display reads and writes use bidirectional GPIO14 at 2 MHz; GPIO12 remains the shared MicroSD return line. Physical validation on both screen revisions is required.
+
 Both paths support full monochrome, partial updates and four-level grayscale. Controller-specific BUSY polarity, waveform selection, previous/current frame packing and sleep sequences are selected automatically. The display enters standby after each refresh so the analog supply is not left enabled while Bunny is idle. No menu choice or separate firmware is needed.
 
 See [the compatibility test plan](docs/screen_compatibility.md) for hardware checks and verification limits.
